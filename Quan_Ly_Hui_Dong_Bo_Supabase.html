@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123b35"><title>Quản lý hụi đồng bộ</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17362e;background:#f2f6f4}*{box-sizing:border-box}body{margin:0;padding:14px;max-width:700px;margin:auto}header{background:#123b35;color:#fff;border-radius:15px;padding:18px;margin-bottom:12px}h1{font-size:22px;margin:0 0 4px}.muted{color:#66776f;font-size:12px}.panel{background:#fff;border:1px solid #e0e9e5;border-radius:13px;padding:14px;margin:12px 0}h2{font-size:16px;margin:0 0 10px}label{display:block;font-size:12px;color:#66776f;margin:9px 0 4px}input{width:100%;padding:11px;border:1px solid #cfdbd5;border-radius:9px;font:inherit;font-size:16px;background:#fbfdfc;color:#17362e}button{border:0;border-radius:9px;padding:11px 13px;font-weight:650;background:#e8efeb;color:#17362e;margin:4px 3px 4px 0}button.primary{background:#176c56;color:#fff}button.danger{color:#a52b2b;background:#fff0ee}.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.stat{background:#f3f7f5;border-radius:10px;padding:10px;font-size:12px;color:#65766e}.stat b{display:block;font-size:18px;color:#17362e;margin-top:3px;overflow-wrap:anywhere}.item{border-top:1px solid #e5ece8;padding:12px 0}.tag{font-size:11px;border-radius:20px;background:#edf3f0;padding:4px 8px}.green{color:#13795b}.red{color:#b52e2e}.hidden{display:none!important}.status{font-size:12px;padding:8px;background:#eef5f1;border-radius:8px;margin-top:8px;overflow-wrap:anywhere}.small{font-size:12px}.actions{display:flex;gap:6px}.actions button{flex:1}.code{white-space:pre-wrap;word-break:break-word;background:#f2f5f3;padding:10px;border-radius:8px;font:12px ui-monospace,monospace;max-height:220px;overflow:auto}.note{line-height:1.5}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header><h1>📒 QUẢN LÝ HỤI</h1><div style="font-size:12px;opacity:.85">Một file HTML · Đồng bộ nhiều iPhone qua Supabase</div><div id="connection" class="status">Chưa kết nối Supabase</div></header>
+
+<section class="panel" id="setup">
+<h2>1. Kết nối Supabase</h2>
+<label>Project URL</label><input id="url" placeholder="https://xxxxxxxx.supabase.co" autocapitalize="none">
+<label>Publishable key (hoặc anon key)</label><input id="key" placeholder="sb_publishable_... hoặc eyJ..." autocapitalize="none">
+<div class="row"><button class="primary" id="connect">Lưu và kết nối</button><button id="showSql">Hiện SQL tạo bảng</button></div>
+<div id="sqlBox" class="hidden"><p class="small">Sao chép SQL bên dưới, dán vào Supabase → SQL Editor → New query → Run.</p><div class="code" id="sql"></div><button id="copySql">Sao chép SQL</button></div>
+<p class="muted note">URL và key công khai được lưu trên thiết bị. Không nhập service_role key hoặc secret key.</p>
+</section>
+
+<section class="panel hidden" id="auth">
+<h2>2. Đăng nhập tài khoản dùng chung</h2>
+<label>Email</label><input id="email" type="email" autocomplete="username" placeholder="email@example.com">
+<label>Mật khẩu</label><input id="password" type="password" autocomplete="current-password" placeholder="Mật khẩu">
+<div class="row"><button class="primary" id="login">Đăng nhập</button><button id="signup">Tạo tài khoản</button></div>
+<p class="muted">Tạo tài khoản một lần, sau đó dùng cùng email và mật khẩu trên tất cả iPhone. Nếu bật xác nhận email, hãy xác nhận email trước khi đăng nhập.</p>
+</section>
+
+<main id="app" class="hidden">
+<section class="panel">
+<div class="row" style="align-items:center"><h2 style="flex:1">Tổng quan</h2><button id="logout">Đăng xuất</button></div>
+<div class="small muted" id="who"></div>
+<div class="stats" style="margin-top:10px">
+<div class="stat">Số khách hàng<b id="count">0</b></div>
+<div class="stat">Tổng tiền<b id="total">0đ</b></div>
+<div class="stat">Sắp mãn trong 7 ngày<b id="soon">0</b></div>
+<div class="stat">Đã mãn<b id="expired">0</b></div>
+</div>
+<div class="status" id="syncStatus">Đang tải dữ liệu...</div>
+</section>
+
+<section class="panel">
+<h2 id="formTitle">＋ Thêm khách hàng</h2>
+<form id="form">
+<label>Tên khách hàng *</label><input id="name" required maxlength="100">
+<label>Số tiền hụi (VNĐ) *</label><input id="amount" type="number" min="1" step="1" required>
+<label>Tổng số ngày chơi hụi *</label><input id="days" type="number" min="1" max="36500" required>
+<label>Ngày đóng hụi *</label><input id="start" type="date" required>
+<p class="small">Ngày mãn: <b id="end">—</b> · <span id="left">Còn lại: —</span></p>
+<div class="row"><button class="primary" type="submit" id="save">Lưu khách hàng</button><button type="button" id="cancel">Hủy sửa</button></div>
+</form>
+</section>
+
+<section class="panel">
+<h2>Danh sách khách hàng</h2><input id="search" placeholder="Tìm tên khách hàng..."><div id="list"></div>
+</section>
+<section class="panel">
+<h2>Sao lưu dữ liệu</h2><button id="export">Xuất CSV</button><button id="backup">Sao lưu JSON</button>
+<p class="muted note">Dữ liệu chính được lưu trên Supabase và đồng bộ giữa các máy đã đăng nhập cùng tài khoản. Sao lưu JSON là bản dự phòng tải về máy.</p>
+</section>
+</main>
+<script>
+(()=>{
+const SQL=`create table if not exists public.hui_records (
+ id uuid primary key default gen_random_uuid(),
+ user_id uuid not null references auth.users(id) on delete cascade,
+ name text not null,
+ amount numeric(18,2) not null check (amount > 0),
+ days integer not null check (days > 0),
+ start_date date not null,
+ end_date date not null,
+ created_at timestamptz not null default now()
+);
+alter table public.hui_records enable row level security;
+drop policy if exists "hui_select_own" on public.hui_records;
+drop policy if exists "hui_insert_own" on public.hui_records;
+drop policy if exists "hui_update_own" on public.hui_records;
+drop policy if exists "hui_delete_own" on public.hui_records;
+create policy "hui_select_own" on public.hui_records for select to authenticated using (auth.uid() = user_id);
+create policy "hui_insert_own" on public.hui_records for insert to authenticated with check (auth.uid() = user_id);
+create policy "hui_update_own" on public.hui_records for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "hui_delete_own" on public.hui_records for delete to authenticated using (auth.uid() = user_id);
+do $$ begin
+ alter publication supabase_realtime add table public.hui_records;
+exception when duplicate_object then null;
+end $$;`;
+const $=id=>document.getElementById(id);let client=null,user=null,records=[],channel=null,editing=null,loading=false;
+const today=()=>{let d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+const add=(s,n)=>{let d=new Date(s+'T00:00:00');d.setDate(d.getDate()+Number(n));return iso(d)};
+const diff=s=>Math.round((new Date(s+'T00:00:00')-today())/86400000);
+const date=s=>new Date(s+'T00:00:00').toLocaleDateString('vi-VN');
+const money=n=>Number(n).toLocaleString('vi-VN')+'đ';
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function msg(s,ok=false){$('connection').textContent=s;$('connection').style.color=ok?'#b7f2d1':'#fff'}
+function setSync(s){$('syncStatus').textContent=s}
+function calc(){let s=$('start').value,n=+$('days').value;if(s&&n>0&&n<=36500){let e=add(s,n),d=diff(e);$('end').textContent=date(e);$('left').textContent=d<0?'Đã mãn '+Math.abs(d)+' ngày':d===0?'Mãn hôm nay':'Còn '+d+' ngày'}else{$('end').textContent='—';$('left').textContent='Còn lại: —'}}
+function reset(){editing=null;$('form').reset();$('start').value=iso(today());$('formTitle').textContent='＋ Thêm khách hàng';$('save').textContent='Lưu khách hàng';calc()}
+function status(r){let n=diff(r.end_date);return n<0?{label:'Đã mãn',left:'Quá hạn '+Math.abs(n)+' ngày',cls:'muted'}:n<=7?{label:n===0?'Mãn hôm nay':'Sắp mãn',left:n===0?'Hôm nay':n+' ngày nữa',cls:'red'}:{label:'Đang chơi',left:n+' ngày nữa',cls:'green'}}
+function render(){
+ const total=records.reduce((a,r)=>a+Number(r.amount),0);
+ $('count').textContent=records.length;$('total').textContent=money(total);
+ $('soon').textContent=records.filter(r=>diff(r.end_date)>=0&&diff(r.end_date)<=7).length;
+ $('expired').textContent=records.filter(r=>diff(r.end_date)<0).length;
+ const q=$('search').value.trim().toLocaleLowerCase('vi');
+ const arr=records.filter(r=>r.name.toLocaleLowerCase('vi').includes(q)).sort((a,b)=>a.end_date.localeCompare(b.end_date));
+ $('list').innerHTML=arr.length?arr.map(r=>{let st=status(r);return `<div class="item"><div class="row" style="align-items:center"><b>${esc(r.name)}</b><span class="tag ${st.cls}" style="margin-left:auto">${st.label}</span></div><div class="small" style="margin-top:6px">Số tiền: <b>${money(r.amount)}</b> · Tổng thời gian: <b>${r.days} ngày</b></div><div class="small">Ngày đóng: ${date(r.start_date)} · Ngày mãn: ${date(r.end_date)}</div><div class="small ${st.cls}" style="margin-top:5px">⏳ ${st.left}</div><div class="actions"><button data-edit="${r.id}">Sửa</button><button class="danger" data-del="${r.id}">Xóa</button></div></div>`}).join(''):'<p class="muted">Chưa có khách hàng.</p>';
+ document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>remove(b.dataset.del));
+}
+async function loadRecords(){if(!client||!user)return;setSync('Đang tải dữ liệu từ Supabase...');const {data,error}=await client.from('hui_records').select('*').order('end_date');if(error){setSync('Lỗi tải dữ liệu: '+error.message);return}records=data||[];render();setSync('Đã đồng bộ · '+new Date().toLocaleTimeString('vi-VN'))}
+function edit(id){let r=records.find(x=>x.id===id);if(!r)return;editing=id;$('name').value=r.name;$('amount').value=r.amount;$('days').value=r.days;$('start').value=r.start_date;$('formTitle').textContent='Sửa khách hàng';$('save').textContent='Lưu thay đổi';calc();$('form').scrollIntoView({behavior:'smooth'})}
+async function remove(id){let r=records.find(x=>x.id===id);if(!r||!confirm('Xóa khách hàng '+r.name+'?'))return;let {error}=await client.from('hui_records').delete().eq('id',id);if(error)alert('Không xóa được: '+error.message);else await loadRecords()}
+async function connect(){let url=$('url').value.trim(),key=$('key').value.trim();if(!url||!key)return alert('Nhập Project URL và Publishable/anon key.');if(!window.supabase)return alert('Không tải được thư viện Supabase. Kiểm tra Internet.');localStorage.setItem('hui_sb_url',url);localStorage.setItem('hui_sb_key',key);client=window.supabase.createClient(url,key);msg('Đã kết nối máy chủ. Hãy đăng nhập.',true);$('auth').classList.remove('hidden');}
+$('connect').onclick=connect;$('showSql').onclick=()=>{$('sql').textContent=SQL;$('sqlBox').classList.toggle('hidden')};$('copySql').onclick=async()=>{try{await navigator.clipboard.writeText(SQL);alert('Đã sao chép SQL')}catch(e){alert('Hãy nhấn giữ và sao chép nội dung SQL trong khung.')}};
+$('login').onclick=async()=>{if(!client)return alert('Kết nối Supabase trước.');let {data,error}=await client.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)return alert('Đăng nhập lỗi: '+error.message);await signedIn(data.user)};
+$('signup').onclick=async()=>{if(!client)return alert('Kết nối Supabase trước.');let {data,error}=await client.auth.signUp({email:$('email').value.trim(),password:$('password').value});if(error)return alert('Tạo tài khoản lỗi: '+error.message);if(data.session)await signedIn(data.user);else alert('Đã gửi email xác nhận (nếu dự án bật xác nhận). Hãy xác nhận email rồi đăng nhập.')};
+async function signedIn(u){user=u;$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent='Đăng nhập: '+u.email;await loadRecords();if(channel)await client.removeChannel(channel);channel=client.channel('hui-live-'+u.id).on('postgres_changes',{event:'*',schema:'public',table:'hui_records',filter:'user_id=eq.'+u.id},()=>loadRecords()).subscribe(s=>{if(s==='SUBSCRIBED')setSync('Đang đồng bộ trực tiếp với các điện thoại khác')});}
+$('logout').onclick=async()=>{if(channel){await client.removeChannel(channel);channel=null}await client.auth.signOut();user=null;records=[];$('app').classList.add('hidden');$('auth').classList.remove('hidden');msg('Đã đăng xuất')};
+$('form').onsubmit=async e=>{e.preventDefault();if(!client||!user)return;let name=$('name').value.trim(),amount=Number($('amount').value),days=Number($('days').value),start=$('start').value;if(!name||amount<=0||!Number.isInteger(days)||days<1||days>36500||!start)return alert('Kiểm tra thông tin nhập.');let row={user_id:user.id,name,amount,days,start_date:start,end_date:add(start,days)};let result=editing?await client.from('hui_records').update(row).eq('id',editing):await client.from('hui_records').insert(row);if(result.error)return alert('Không lưu được: '+result.error.message);reset();await loadRecords()};
+$('cancel').onclick=reset;$('days').oninput=calc;$('start').onchange=calc;$('search').oninput=render;
+function download(content,name,type){let url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+$('backup').onclick=()=>download(JSON.stringify(records,null,2),'sao-luu-hui.json','application/json');
+$('export').onclick=()=>{let rows=[['Tên khách','Số tiền','Số ngày','Ngày đóng','Ngày mãn'],...records.map(r=>[r.name,r.amount,r.days,r.start_date,r.end_date])];download('\ufeff'+rows.map(a=>a.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\r\n'),'danh-sach-hui.csv','text/csv;charset=utf-8')};
+(async()=>{let u=localStorage.getItem('hui_sb_url'),k=localStorage.getItem('hui_sb_key');if(u)$('url').value=u;if(k)$('key').value=k;$('start').value=iso(today());$('sql').textContent=SQL;if(u&&k){await connect();let {data}=await client.auth.getSession();if(data.session)await signedIn(data.session.user)}})();
+})();
+</script>
+</body></html>
